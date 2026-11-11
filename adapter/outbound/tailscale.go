@@ -304,7 +304,13 @@ func (t *Tailscale) applyExitNodePrefs(ctx context.Context) error {
 		mp.ExitNodeAllowLANAccess = *t.option.ExitNodeAllowLANAccess
 		mp.ExitNodeAllowLANAccessSet = true
 	}
-	if err = mp.SetExitNodeIP(t.option.ExitNode, status); err != nil {
+	// Hand a literal IP to the backend as is: it keeps ExitNodeIP pending and resolves it
+	// when a netmap brings that peer. SetExitNodeIP checks the IP against status whenever
+	// the backend is Running, and a peerless cached netmap makes it Running before any
+	// peer arrives, so it would reject the IP on the only call this start makes.
+	if ip, perr := netip.ParseAddr(t.option.ExitNode); perr == nil {
+		mp.ExitNodeIP = ip
+	} else if err = mp.SetExitNodeIP(t.option.ExitNode, status); err != nil {
 		return err
 	}
 	_, err = lc.EditPrefs(ctx, mp)
